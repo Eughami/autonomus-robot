@@ -1,6 +1,6 @@
 # Prerequisites
 *.d
-*.
+
 
 # Object files
 *.o
@@ -52,6 +52,7 @@ Module.symvers
 Mkfile.old
 dkms.conf
 /build
+.detect_go_grip.cpp.kate-swp
 
 #kdev
 *.kdev4
