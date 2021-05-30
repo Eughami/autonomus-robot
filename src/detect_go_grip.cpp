@@ -131,6 +131,42 @@ void Wander(double& av, double& lv){
     lv = ((rand()%11)/10.0)*max_speed;
 }
 
+void ObstacleAvoidance(double& av, double& lv, RangerProxy &lp){
+    std::vector<double> temp_readings(180);
+    const int SIZE_LP=lp.GetRangeCount();
+    const double MAX_LV=0.6; //cm
+    const double MAX_AV=30;
+    double l_min, r_min;
+    double l_field,r_field;
+    
+    for (int i=0; i<SIZE_LP; ++i)
+        temp_readings[i]=lp[i];
+     
+    r_min=( 0.8 * *std::min_element(temp_readings.begin(),temp_readings.begin()+90) + 0.2* std::accumulate(temp_readings.begin(), temp_readings.begin()+90, 0.0)/90 );
+
+    l_min=( 0.8* *std::min_element(temp_readings.begin()+90,temp_readings.begin()+180) + 0.2 * std::accumulate(temp_readings.begin()+90, temp_readings.begin()+180, 0.0)/90 );
+    
+    l_field=(100000*r_min)/500-100;
+    r_field=(100000*l_min)/500-100;
+    
+    
+    if (l_field>100)
+        l_field=100;
+    
+    if (r_field>100)
+        r_field=100;
+    
+    lv=(r_field+l_field)/500;
+    av=(r_field-l_field);
+    
+    if ((r_field+l_field)<0.05)
+        av=( (std::rand() %2) ? 1:-1 ) * MAX_AV;
+    
+    lv=limit(lv,0.0,MAX_LV);
+    av=limit(av,-MAX_AV,MAX_AV);
+    av=dtor(av);
+}
+
 int main() {
       srand(time(NULL));
     // we throw exceptions on creation if we fail
@@ -229,6 +265,7 @@ int main() {
                 {
                     // TODO: incomplete part
                     Wander(av, lv);
+                    ObstacleAvoidance(lv, av, lp);
 
                 }
             }
@@ -256,6 +293,8 @@ int main() {
                 lv=0.0;
                 av=0.0;
                 curr_pos.clear();
+                Wander(av, lv);
+                
             }
 
             // set the new lv and av
