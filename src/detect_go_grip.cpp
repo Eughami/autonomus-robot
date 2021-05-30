@@ -26,6 +26,9 @@
 #include <vector> // std::vector
 #include <algorithm> // min_element, max_element
 #include <numeric> // accumulate
+#include <cstdlib>
+#include <ctime>
+#include <unistd.h>
 
 using namespace PlayerCc;
 
@@ -43,8 +46,7 @@ int state=-1;
 // constants for moving to target position
 const double CLOSE_TARGET=0.20; // 20 cm
 const double ANG_ERR=dtor(1); //1 degree
-
-
+ 
 
 void goToTarget(double& lv,double& av,const std::vector<double>& tar_pos,std::vector<double>& rob_pos)
 {
@@ -119,9 +121,18 @@ void moveToBox(double& lv,double& av,const int& centre,const playerc_blobfinder_
 }
 
 
+void Wander(double& av, double& lv){
+    
+    int max_turn=90;
+    int min_turn=-90;
+    double max_speed=1;
+    
+    av = dtor((rand()%(max_turn-min_turn+1))+min_turn);
+    lv = ((rand()%11)/10.0)*max_speed;
+}
 
 int main() {
-
+      srand(time(NULL));
     // we throw exceptions on creation if we fail
     try
     {
@@ -217,8 +228,7 @@ int main() {
                 else
                 {
                     // TODO: incomplete part
-                    lv=0.0;
-                    av=0.0;
+                    Wander(av, lv);
 
                 }
             }
@@ -250,6 +260,7 @@ int main() {
 
             // set the new lv and av
             pp.SetSpeed(lv,av);
+            sleep(1);
             std::cout<<"state:"<<state<<"  lv:"<<lv<<"  av:"<<av<<std::endl;
 
         } //end of sense-think-act loop
