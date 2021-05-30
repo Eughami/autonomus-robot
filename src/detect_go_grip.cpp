@@ -44,7 +44,7 @@ const double CLOSE=0.30; //cm
 // define finite state machine
 int state=-1;
 // constants for moving to target position
-const double CLOSE_TARGET=0.20; // 20 cm
+const double CLOSE_TARGET=1; // 1m
 const double ANG_ERR=dtor(1); //1 degree
 
 
