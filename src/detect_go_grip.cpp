@@ -46,7 +46,7 @@ int state=-1;
 // constants for moving to target position
 const double CLOSE_TARGET=0.20; // 20 cm
 const double ANG_ERR=dtor(1); //1 degree
- 
+
 
 void goToTarget(double& lv,double& av,const std::vector<double>& tar_pos,std::vector<double>& rob_pos)
 {
@@ -121,54 +121,60 @@ void moveToBox(double& lv,double& av,const int& centre,const playerc_blobfinder_
 }
 
 
-void Wander(double& av, double& lv){
-    
-    int max_turn=90;
-    int min_turn=-90;
+void Wander(double& av, double& lv) {
+
+    int max_turn=30;
+    int min_turn=-30;
     double max_speed=1;
-    
+
     av = dtor((rand()%(max_turn-min_turn+1))+min_turn);
     lv = ((rand()%11)/10.0)*max_speed;
+
+    std::cout<<"---------------------------Wandering behaviour-------------------"<<std::endl;
 }
 
-void ObstacleAvoidance(double& av, double& lv, RangerProxy &lp){
+void ObstacleAvoidance(double& av, double& lv, RangerProxy &lp) {
     std::vector<double> temp_readings(180);
     const int SIZE_LP=lp.GetRangeCount();
     const double MAX_LV=0.6; //cm
     const double MAX_AV=30;
     double l_min, r_min;
     double l_field,r_field;
-    
+
     for (int i=0; i<SIZE_LP; ++i)
         temp_readings[i]=lp[i];
-     
+
     r_min=( 0.8 * *std::min_element(temp_readings.begin(),temp_readings.begin()+90) + 0.2* std::accumulate(temp_readings.begin(), temp_readings.begin()+90, 0.0)/90 );
 
     l_min=( 0.8* *std::min_element(temp_readings.begin()+90,temp_readings.begin()+180) + 0.2 * std::accumulate(temp_readings.begin()+90, temp_readings.begin()+180, 0.0)/90 );
-    
+
     l_field=(100000*r_min)/500-100;
     r_field=(100000*l_min)/500-100;
-    
-    
+
+
     if (l_field>100)
         l_field=100;
-    
+
     if (r_field>100)
         r_field=100;
-    
+
     lv=(r_field+l_field)/500;
     av=(r_field-l_field);
-    
+    std::cout<<"Obstale Avoidance : reading lv "<< lv<< " av : " << av<<std::endl;
+
+
     if ((r_field+l_field)<0.05)
         av=( (std::rand() %2) ? 1:-1 ) * MAX_AV;
-    
+
     lv=limit(lv,0.0,MAX_LV);
     av=limit(av,-MAX_AV,MAX_AV);
     av=dtor(av);
+
+    std::cout<<"Obstale Avoidance : reading lv "<< lv<< " av : " << av<<std::endl;
 }
 
 int main() {
-      srand(time(NULL));
+    srand(time(NULL));
     // we throw exceptions on creation if we fail
     try
     {
@@ -225,6 +231,8 @@ int main() {
         std::vector<double> rob_pos(3);
         // position of the current released disc
         std::vector<double> curr_pos(3);
+        double dist;
+        double curr_ang_err;
 
         // initial state
         state=0;
@@ -265,7 +273,9 @@ int main() {
                 {
                     // TODO: incomplete part
                     Wander(av, lv);
-                    ObstacleAvoidance(lv, av, lp);
+                    //Avoid obstacle
+                    ObstacleAvoidance(av, lv, lp);
+
 
                 }
             }
@@ -282,6 +292,8 @@ int main() {
                 rob_pos[0]=pp.GetXPos();
                 rob_pos[1]=pp.GetYPos();
                 rob_pos[2]=pp.GetYaw();
+                //Avoid obstacle
+                ObstacleAvoidance(av, lv, lp);
                 goToTarget(lv,av,coll_pos,rob_pos);
             }
             else if (state==3)
@@ -292,10 +304,41 @@ int main() {
                 gp.Open();
                 lv=0.0;
                 av=0.0;
+                state = 4;
                 curr_pos.clear();
-                Wander(av, lv);
-                
+                curr_pos[0]=pp.GetXPos();
+                curr_pos[1] = pp.GetYPos();
+                curr_pos[2] = pp.GetYaw();
+            } else if (state == 4) {
+
+                dist = std::sqrt((pp.GetXPos()- curr_pos[0])*(pp.GetXPos()- curr_pos[0]) + (pp.GetYPos() - curr_pos[1])*(pp.GetYPos() - curr_pos[1]));
+
+                curr_ang_err = std::fabs(curr_pos[2]+M_PI)- pp.GetYaw();
+                if(curr_ang_err> M_PI)
+                    curr_ang_err = curr_ang_err-2*M_PI;
+
+                else if(curr_ang_err <-M_PI)
+                    curr_ang_err = curr_ang_err+2*M_PI;
+                std::cout<<"Distance to collection area:"<<dist<<" Current angle error:"<<curr_ang_err<<std::endl;
+
+                if(dist< 0.3) {
+
+                    // go backward
+                    lv= -0.5;
+                    av=0;
+                }
+                else if( curr_ang_err> dtor(10)) {
+                    // turn left
+                    lv=0;
+                    av=0.5;
+
+                } else {
+                    lv=0;
+                    av=0;
+                    state = 0;
+                }
             }
+
 
             // set the new lv and av
             pp.SetSpeed(lv,av);
