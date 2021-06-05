@@ -46,6 +46,7 @@ int state=-1;
 // constants for moving to target position
 const double CLOSE_TARGET=1; // 1m
 const double ANG_ERR=dtor(1); //1 degree
+int COLLECTED_BLOB_NO = 0;
 
 
 void goToTarget(double& lv,double& av,const std::vector<double>& tar_pos,std::vector<double>& rob_pos)
@@ -88,17 +89,47 @@ void goToTarget(double& lv,double& av,const std::vector<double>& tar_pos,std::ve
 }
 
 
-void moveToBox(double& lv,double& av,const int& centre,const playerc_blobfinder_blob_t& blob)
+void moveToBox(double& lv,double& av,const int& centre,const playerc_blobfinder_blob_t& blob,const Position2dProxy &pp,BlobfinderProxy &bfp,const std::vector<double>& tar_pos)
 {
     // How far is the detected blob
     std::cout<<"range:"<<blob.range<<std::endl;
 
+    if(blob.range < CLOSE_TARGET && blob.range >  CLOSE+0.10) {
+        /*
+        * If robot is close to collection Area it means
+        * the blob is already in the collection area
+        * Turn right/ left and go back to wander
+        */
+
+        double d = pow((pp.GetXPos() - tar_pos[0]), 2) + pow((pp.GetYPos()- tar_pos[1]), 2);
+        //make a check if blob is inside the collection Area go back (Collection Area raduis is 1m + 0.5m for the robot length and error margin)
+
+        std::cout<<"distance from collection area: "<<d<<std::endl;
+        if (d <=  pow(1.5, 2))
+        {
+            // if no blob is seen go back to wander
+            // set state to 0 again
+            if (bfp.GetCount() == 0)
+            {
+                state = 0;
+            }
+            else {
+
+                // turn right or left
+
+                av = 0.5;
+                lv = 0;
+            }
+        }
+    }
     //change the state to grip the object
-    if (blob.range<CLOSE)
+    else if (blob.range<CLOSE)
     {
+
         lv=0.0;
         av=0.0;
         state=1;
+
     }
     else {
         // the closer to the object the robot moves slower
@@ -267,7 +298,7 @@ int main() {
                     // find centre of image
                     centre = bfp.GetWidth()/2;
 
-                    moveToBox(lv,av,centre,blob);
+                    moveToBox(lv,av,centre,blob,pp,bfp,coll_pos);
                 }
                 else
                 {
@@ -305,6 +336,8 @@ int main() {
                 lv=0.0;
                 av=0.0;
                 state = 4;
+                // increase the flag for number of collected blob
+                COLLECTED_BLOB_NO++;
                 curr_pos.clear();
                 curr_pos[0]=pp.GetXPos();
                 curr_pos[1] = pp.GetYPos();
@@ -333,6 +366,9 @@ int main() {
                     av=0.5;
 
                 } else {
+                    // make a check if 3 blob are collected
+                    // then go back to charge station
+
                     lv=0;
                     av=0;
                     state = 0;
@@ -343,8 +379,12 @@ int main() {
             // set the new lv and av
             pp.SetSpeed(lv,av);
             sleep(1);
-            std::cout<<"state:"<<state<<"  lv:"<<lv<<"  av:"<<av<<std::endl;
+            std::cout<<"state:"<<state<<"  lv:"<<lv<<"  av:"<<av<<" collected blob:"<<COLLECTED_BLOB_NO<<std::endl;
+            if(COLLECTED_BLOB_NO == 3) {
+                std::cout<<"All 3 blob are collected going back to chargin area"<<std::endl;
+                return -1;
 
+            }
         } //end of sense-think-act loop
 
     }
