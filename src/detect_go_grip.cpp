@@ -152,11 +152,12 @@ void moveToBox(double& lv,double& av,const int& centre,const playerc_blobfinder_
 }
 
 
-void Wander(double& av, double& lv) {
+void Wander(double& av, double& lv, RangerProxy &lp) {
 
     int max_turn=30;
     int min_turn=-30;
     double max_speed=1;
+    
 
     av = dtor((rand()%(max_turn-min_turn+1))+min_turn);
     lv = ((rand()%11)/10.0)*max_speed;
@@ -206,6 +207,7 @@ void ObstacleAvoidance(double& av, double& lv, RangerProxy &lp) {
 
 int main() {
     srand(time(NULL));
+    
     // we throw exceptions on creation if we fail
     try
     {
@@ -264,7 +266,10 @@ int main() {
         std::vector<double> curr_pos(3);
         double dist;
         double curr_ang_err;
-
+        double avg_left, avg_right, avg_front;
+        const int SIZE_LP=lp.GetRangeCount();
+        std::vector<double> temp_readings(SIZE_LP);
+        
         // initial state
         state=0;
 
@@ -278,6 +283,12 @@ int main() {
             // TODO: (2) implement obstacle avoidance
             // TODO: (3) implement go to charge area behaviour
             // TODO: (4) Add new states in order controller works accurately
+            for (int i=0; i<SIZE_LP; ++i)
+                temp_readings[i]=lp[i];
+            
+            avg_right=std::accumulate(temp_readings.begin(), temp_readings.begin()+60, 0.0)/60;
+            avg_front=std::accumulate(temp_readings.begin()+60, temp_readings.begin()+120, 0.0)/60;
+            avg_left=std::accumulate(temp_readings.begin()+120, temp_readings.begin()+180, 0.0)/60;
 
             if (state==0) {
                 if(bfp.GetCount()!=0) {
@@ -303,9 +314,10 @@ int main() {
                 else
                 {
                     // TODO: incomplete part
-                    Wander(av, lv);
+                    Wander(av, lv,lp);
                     //Avoid obstacle
-                    ObstacleAvoidance(av, lv, lp);
+                    if((avg_left < 0.4) || (avg_right < 0.4) || (avg_front < 0.4))
+                        ObstacleAvoidance(av, lv, lp);
 
 
                 }
@@ -324,8 +336,9 @@ int main() {
                 rob_pos[1]=pp.GetYPos();
                 rob_pos[2]=pp.GetYaw();
                 //Avoid obstacle
-                ObstacleAvoidance(av, lv, lp);
+                
                 goToTarget(lv,av,coll_pos,rob_pos);
+               
             }
             else if (state==3)
             {
@@ -378,7 +391,7 @@ int main() {
 
             // set the new lv and av
             pp.SetSpeed(lv,av);
-            sleep(1);
+            sleep(2);
             std::cout<<"state:"<<state<<"  lv:"<<lv<<"  av:"<<av<<" collected blob:"<<COLLECTED_BLOB_NO<<std::endl;
             if(COLLECTED_BLOB_NO == 3) {
                 std::cout<<"All 3 blob are collected going back to chargin area"<<std::endl;
