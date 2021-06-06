@@ -49,7 +49,7 @@ const double ANG_ERR=dtor(1); //1 degree
 int COLLECTED_BLOB_NO = 0;
 
 
-void goToTarget(double& lv,double& av,const std::vector<double>& tar_pos,std::vector<double>& rob_pos)
+void goToTarget(double& lv,double& av,const std::vector<double>& tar_pos,std::vector<double>& rob_pos, bool IsCharging)
 {
 
     double dist2target;
@@ -84,7 +84,10 @@ void goToTarget(double& lv,double& av,const std::vector<double>& tar_pos,std::ve
     {
         lv=0.0;
         av=0.0;
-        state=3;
+        if(IsCharging)
+            state=5;
+        else
+            state=3;
     }
 }
 
@@ -94,17 +97,9 @@ void moveToBox(double& lv,double& av,const int& centre,const playerc_blobfinder_
     // How far is the detected blob
     std::cout<<"range:"<<blob.range<<std::endl;
 
-    if(blob.range < CLOSE_TARGET && blob.range >  CLOSE+0.10) {
-        /*
-        * If robot is close to collection Area it means
-        * the blob is already in the collection area
-        * Turn right/ left and go back to wander
-        */
-
+    if (blob.range<CLOSE)
+    {
         double d = pow((pp.GetXPos() - tar_pos[0]), 2) + pow((pp.GetYPos()- tar_pos[1]), 2);
-        //make a check if blob is inside the collection Area go back (Collection Area raduis is 1m + 0.5m for the robot length and error margin)
-
-        std::cout<<"distance from collection area: "<<d<<std::endl;
         if (d <=  pow(1.5, 2))
         {
             // if no blob is seen go back to wander
@@ -115,20 +110,18 @@ void moveToBox(double& lv,double& av,const int& centre,const playerc_blobfinder_
             }
             else {
 
-                // turn right or left
+                // go back and turn right or left
 
                 av = 0.5;
-                lv = 0;
+                lv = -0.5;
             }
-        }
-    }
-    //change the state to grip the object
-    else if (blob.range<CLOSE)
-    {
+        } else {
 
-        lv=0.0;
-        av=0.0;
-        state=1;
+            lv=0.0;
+            av=0.0;
+            state=1;
+        }
+
 
     }
     else {
@@ -157,7 +150,7 @@ void Wander(double& av, double& lv, RangerProxy &lp) {
     int max_turn=30;
     int min_turn=-30;
     double max_speed=1;
-    
+
 
     av = dtor((rand()%(max_turn-min_turn+1))+min_turn);
     lv = ((rand()%11)/10.0)*max_speed;
@@ -207,7 +200,7 @@ void ObstacleAvoidance(double& av, double& lv, RangerProxy &lp) {
 
 int main() {
     srand(time(NULL));
-    
+
     // we throw exceptions on creation if we fail
     try
     {
@@ -269,7 +262,7 @@ int main() {
         double avg_left, avg_right, avg_front;
         const int SIZE_LP=lp.GetRangeCount();
         std::vector<double> temp_readings(SIZE_LP);
-        
+
         // initial state
         state=0;
 
@@ -285,7 +278,7 @@ int main() {
             // TODO: (4) Add new states in order controller works accurately
             for (int i=0; i<SIZE_LP; ++i)
                 temp_readings[i]=lp[i];
-            
+
             avg_right=std::accumulate(temp_readings.begin(), temp_readings.begin()+60, 0.0)/60;
             avg_front=std::accumulate(temp_readings.begin()+60, temp_readings.begin()+120, 0.0)/60;
             avg_left=std::accumulate(temp_readings.begin()+120, temp_readings.begin()+180, 0.0)/60;
@@ -316,8 +309,8 @@ int main() {
                     // TODO: incomplete part
                     Wander(av, lv,lp);
                     //Avoid obstacle
-                    if((avg_left < 0.4) || (avg_right < 0.4) || (avg_front < 0.4))
-                        ObstacleAvoidance(av, lv, lp);
+//                    if((avg_left < 0.4) || (avg_right < 0.4) || (avg_front < 0.4))
+                    ObstacleAvoidance(av, lv, lp);
 
 
                 }
@@ -336,9 +329,10 @@ int main() {
                 rob_pos[1]=pp.GetYPos();
                 rob_pos[2]=pp.GetYaw();
                 //Avoid obstacle
-                
-                goToTarget(lv,av,coll_pos,rob_pos);
-               
+                    ObstacleAvoidance(av, lv, lp);
+
+                goToTarget(lv,av,coll_pos,rob_pos, false);
+
             }
             else if (state==3)
             {
@@ -348,9 +342,9 @@ int main() {
                 gp.Open();
                 lv=0.0;
                 av=0.0;
-                state = 4;
                 // increase the flag for number of collected blob
                 COLLECTED_BLOB_NO++;
+                state = 4;
                 curr_pos.clear();
                 curr_pos[0]=pp.GetXPos();
                 curr_pos[1] = pp.GetYPos();
@@ -379,13 +373,30 @@ int main() {
                     av=0.5;
 
                 } else {
-                    // make a check if 3 blob are collected
-                    // then go back to charge station
+
 
                     lv=0;
                     av=0;
-                    state = 0;
+                    // if 3 blob are collected return to charging
+                    if (COLLECTED_BLOB_NO == 3) {
+                        state= 5;
+                    } else {
+// wander
+                        state = 0;
+                    }
                 }
+            } else if (state == 5) {
+                // make a check if 3 blob are collected
+                // then go back to charge station
+                    ObstacleAvoidance(av, lv, lp);
+
+                goToTarget(lv,av,char_pos,rob_pos, true);
+                std::cout<<"All 3 blob are collected and robot is returning to charging Area"<<std::endl;
+
+            } else if (state ==6) {
+                lv=0;
+                av=0;
+                // robot stopped
             }
 
 
@@ -393,11 +404,6 @@ int main() {
             pp.SetSpeed(lv,av);
             sleep(2);
             std::cout<<"state:"<<state<<"  lv:"<<lv<<"  av:"<<av<<" collected blob:"<<COLLECTED_BLOB_NO<<std::endl;
-            if(COLLECTED_BLOB_NO == 3) {
-                std::cout<<"All 3 blob are collected going back to chargin area"<<std::endl;
-                return -1;
-
-            }
         } //end of sense-think-act loop
 
     }
